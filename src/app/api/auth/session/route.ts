@@ -41,7 +41,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Firebase ID token could not be verified by the server.' }, { status: 401 });
     }
     console.error('Admin session creation failed:', error);
-    return NextResponse.json({ success: false, error: 'Server Firebase Admin configuration is missing or invalid.' }, { status: 500 });
+    const detail = error instanceof Error && error.message
+      ? ` Details: ${error.message.slice(0, 220)}`
+      : '';
+    return NextResponse.json({ success: false, error: `Server Firebase Admin configuration is missing or invalid. Set FIREBASE_SERVICE_ACCOUNT_JSON, or FIREBASE_PROJECT_ID/FIREBASE_CLIENT_EMAIL/FIREBASE_PRIVATE_KEY.${detail}` }, { status: 500 });
   }
 }
 
