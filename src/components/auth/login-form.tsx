@@ -43,7 +43,7 @@ export function LoginForm() {
             }
         } else if (err instanceof Error && err.message) {
             if (err.message === 'ADMIN_ACCESS_DENIED') {
-                setError('This account is not authorized for admin access.');
+                setError('Admin session failed. Check Vercel /api/auth/session deployment and Firebase Admin env.');
             } else {
                 setError(err.message);
             }

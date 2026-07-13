@@ -8,6 +8,8 @@ export type AdminUser = {
   email: string;
 };
 
+const DEFAULT_ADMIN_EMAILS = ['pasanpramuditha97@gmail.com'];
+
 export class AdminAuthError extends Error {
   code: 'Unauthorized' | 'Forbidden';
   email?: string;
@@ -23,13 +25,14 @@ export class AdminAuthError extends Error {
 }
 
 export function configuredAdminEmails() {
-  return [
+  const configured = [
     process.env.ADMIN_EMAILS || '',
     process.env.ADMIN_EMAIL || '',
   ].join(',')
     .split(/[,;\n]+/)
     .map((email) => email.trim().replace(/^['"]+|['"]+$/g, '').toLowerCase())
     .filter(Boolean);
+  return Array.from(new Set([...configured, ...DEFAULT_ADMIN_EMAILS]));
 }
 
 function isDecodedAdmin(decoded: DecodedIdToken) {
