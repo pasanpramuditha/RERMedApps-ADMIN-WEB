@@ -27,8 +27,8 @@ export function configuredAdminEmails() {
     process.env.ADMIN_EMAILS || '',
     process.env.ADMIN_EMAIL || '',
   ].join(',')
-    .split(',')
-    .map((email) => email.trim().toLowerCase())
+    .split(/[,;\n]+/)
+    .map((email) => email.trim().replace(/^['"]+|['"]+$/g, '').toLowerCase())
     .filter(Boolean);
 }
 
