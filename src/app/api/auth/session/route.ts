@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import admin from '@/lib/firebase-admin';
-import { ADMIN_SESSION_COOKIE, AdminAuthError, requireAdminAuth } from '@/lib/server-auth';
 
+const ADMIN_SESSION_COOKIE = 'admin_session';
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 5;
 
 export async function POST(request: Request) {
@@ -11,6 +10,10 @@ export async function POST(request: Request) {
   }
 
   try {
+    const [{ default: admin }, { AdminAuthError, requireAdminAuth }] = await Promise.all([
+      import('@/lib/firebase-admin'),
+      import('@/lib/server-auth'),
+    ]);
     await requireAdminAuth(idToken);
     const sessionCookie = await admin.auth().createSessionCookie(idToken, {
       expiresIn: SESSION_MAX_AGE_SECONDS * 1000,
@@ -27,13 +30,14 @@ export async function POST(request: Request) {
 
     return response;
   } catch (error) {
-    if (error instanceof AdminAuthError && error.code === 'Forbidden') {
-      const configuredText = error.configuredEmailCount && error.configuredEmailCount > 0
-        ? `${error.configuredEmailCount} admin email(s) configured`
+    if (error instanceof Error && error.name === 'AdminAuthError' && 'code' in error && error.code === 'Forbidden') {
+      const authError = error as Error & { email?: string; configuredEmailCount?: number };
+      const configuredText = authError.configuredEmailCount && authError.configuredEmailCount > 0
+        ? `${authError.configuredEmailCount} admin email(s) configured`
         : 'no ADMIN_EMAILS configured';
-      return NextResponse.json({ success: false, error: `This Firebase user (${error.email || 'email missing'}) is not listed in ADMIN_EMAILS (${configuredText}).` }, { status: 403 });
+      return NextResponse.json({ success: false, error: `This Firebase user (${authError.email || 'email missing'}) is not listed in ADMIN_EMAILS (${configuredText}).` }, { status: 403 });
     }
-    if (error instanceof AdminAuthError && error.code === 'Unauthorized') {
+    if (error instanceof Error && error.name === 'AdminAuthError' && 'code' in error && error.code === 'Unauthorized') {
       return NextResponse.json({ success: false, error: 'Firebase ID token could not be verified by the server.' }, { status: 401 });
     }
     console.error('Admin session creation failed:', error);
