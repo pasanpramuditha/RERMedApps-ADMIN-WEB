@@ -8,8 +8,25 @@ export type AdminUser = {
   email: string;
 };
 
-function configuredAdminEmails() {
-  return (process.env.ADMIN_EMAILS || '')
+export class AdminAuthError extends Error {
+  code: 'Unauthorized' | 'Forbidden';
+  email?: string;
+  configuredEmailCount?: number;
+
+  constructor(code: 'Unauthorized' | 'Forbidden', message = code, details: { email?: string; configuredEmailCount?: number } = {}) {
+    super(message);
+    this.name = 'AdminAuthError';
+    this.code = code;
+    this.email = details.email;
+    this.configuredEmailCount = details.configuredEmailCount;
+  }
+}
+
+export function configuredAdminEmails() {
+  return [
+    process.env.ADMIN_EMAILS || '',
+    process.env.ADMIN_EMAIL || '',
+  ].join(',')
     .split(',')
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean);
@@ -62,11 +79,14 @@ export async function requireAdminAuth(idToken?: string | null): Promise<AdminUs
   }
 
   if (!decoded) {
-    throw new Error('Unauthorized');
+    throw new AdminAuthError('Unauthorized');
   }
 
   if (!isDecodedAdmin(decoded)) {
-    throw new Error('Forbidden');
+    throw new AdminAuthError('Forbidden', 'Forbidden', {
+      email: String(decoded.email || '').toLowerCase(),
+      configuredEmailCount: configuredAdminEmails().length,
+    });
   }
 
   return {

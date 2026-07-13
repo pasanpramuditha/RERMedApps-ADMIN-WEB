@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import admin from '@/lib/firebase-admin';
-import { ADMIN_SESSION_COOKIE, requireAdminAuth } from '@/lib/server-auth';
+import { ADMIN_SESSION_COOKIE, AdminAuthError, requireAdminAuth } from '@/lib/server-auth';
 
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 5;
 
@@ -27,11 +27,13 @@ export async function POST(request: Request) {
 
     return response;
   } catch (error) {
-    const message = error instanceof Error ? error.message : '';
-    if (message === 'Forbidden') {
-      return NextResponse.json({ success: false, error: 'This Firebase user is not listed in ADMIN_EMAILS.' }, { status: 403 });
+    if (error instanceof AdminAuthError && error.code === 'Forbidden') {
+      const configuredText = error.configuredEmailCount && error.configuredEmailCount > 0
+        ? `${error.configuredEmailCount} admin email(s) configured`
+        : 'no ADMIN_EMAILS configured';
+      return NextResponse.json({ success: false, error: `This Firebase user (${error.email || 'email missing'}) is not listed in ADMIN_EMAILS (${configuredText}).` }, { status: 403 });
     }
-    if (message === 'Unauthorized') {
+    if (error instanceof AdminAuthError && error.code === 'Unauthorized') {
       return NextResponse.json({ success: false, error: 'Firebase ID token could not be verified by the server.' }, { status: 401 });
     }
     console.error('Admin session creation failed:', error);
