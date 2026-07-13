@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 228 17% 96%; /* #F0F0F5 */
+    --foreground: 240 10% 4%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 4%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 4%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 38 100% 62%; /* #FFAB40 */
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 221.2 83.2% 53.3%;
+    --chart-1: 227 85% 56%;
+    --chart-2: 163 96% 43%;
+    --chart-3: 27 100% 57%;
+    --chart-4: 269 100% 61%;
+    --chart-5: 346 80% 55%;
+    --radius: 1.5rem;
+    
+    --sidebar-background: 240 11% 5%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 221.2 83.2% 53.3%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 11% 12%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 240 11% 15%;
+    --sidebar-ring: 221.2 83.2% 53.3%;
+
+    --card-blue: 224 86% 51%;
+    --card-green: 153 86% 41%;
+    --card-orange: 35 100% 55%;
+    --card-purple: 274 95% 58%;
+    --card-red: 355 86% 51%;
+  }
+
+  .dark {
+    --background: 240 11% 2%;
+    --foreground: 0 0% 98%;
+    --card: 240 11% 5%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 11% 2%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 11% 5%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 11% 9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 11% 10%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 11% 12%;
+    --input: 240 11% 12%;
+    --ring: 221.2 83.2% 53.3%;
+
+    --sidebar-background: 240 11% 2%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 221.2 83.2% 53.3%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 11% 6%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 240 11% 10%;
+    --sidebar-ring: 221.2 83.2% 53.3%;
+
+    --card-blue: 224 86% 51%;
+    --card-green: 153 86% 41%;
+    --card-orange: 35 100% 55%;
+    --card-purple: 274 95% 58%;
+    --card-red: 355 86% 51%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@keyframes financeValueShimmer {
+  0% {
+    transform: translateX(-130%);
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translateX(230%);
+    opacity: 0;
+  }
+}
+
+.finance-value-shimmer {
+  animation: financeValueShimmer 1.05s ease-in-out infinite;
+}

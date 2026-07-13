@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS fnd_activity_logs_tab (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_email VARCHAR(190) NOT NULL DEFAULT 'system@unknown',
+  user_uid VARCHAR(190) NULL,
+  action VARCHAR(120) NOT NULL,
+  operation ENUM('insert','update','delete','action') NOT NULL DEFAULT 'action',
+  entity_type VARCHAR(120) NOT NULL,
+  entity_id VARCHAR(190) NOT NULL,
+  entity_name VARCHAR(255) NOT NULL,
+  changes_json LONGTEXT NULL,
+  ip_address VARCHAR(80) NULL,
+  user_agent VARCHAR(500) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_activity_logs_created_at (created_at),
+  KEY idx_activity_logs_user_email (user_email),
+  KEY idx_activity_logs_operation (operation),
+  KEY idx_activity_logs_entity (entity_type, entity_id),
+  KEY idx_activity_logs_action (action)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

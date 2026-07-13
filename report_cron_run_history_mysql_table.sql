@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS fnd_report_cron_run_history (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    job_key VARCHAR(64) NOT NULL,
+    job_name VARCHAR(120) NOT NULL,
+    platform VARCHAR(32) NOT NULL,
+    report_type VARCHAR(32) NOT NULL DEFAULT 'all',
+    status ENUM('success', 'failed') NOT NULL,
+    mode VARCHAR(64) DEFAULT NULL,
+    started_at DATETIME NOT NULL,
+    finished_at DATETIME NOT NULL,
+    duration_seconds DECIMAL(10,3) NOT NULL DEFAULT 0,
+    rows_saved INT UNSIGNED NOT NULL DEFAULT 0,
+    report_range VARCHAR(255) DEFAULT NULL,
+    summary_json LONGTEXT DEFAULT NULL,
+    error_message TEXT DEFAULT NULL,
+    trigger_source VARCHAR(32) NOT NULL DEFAULT 'cron',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_report_cron_job_finished (job_key, finished_at),
+    KEY idx_report_cron_status_finished (status, finished_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
