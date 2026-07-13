@@ -385,7 +385,15 @@ function preserveMaskedSecrets(data: SettingsFormValues, current: GlobalSettings
 }
 
 export async function getGlobalSettings(): Promise<GlobalSettings> {
-    await requireAdminAuth();
+    try {
+        await requireAdminAuth();
+    } catch (error) {
+        const message = error instanceof Error ? error.message : '';
+        if (message === 'Unauthorized' || message === 'Forbidden') {
+            return maskSecrets(defaultGlobalSettings);
+        }
+        throw error;
+    }
     return maskSecrets(await loadGlobalSettings());
 }
 
