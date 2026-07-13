@@ -23,8 +23,9 @@ async function syncServerSession(user: User | null) {
   });
 
   if (!response.ok) {
+    const payload = await response.json().catch(() => ({ error: '' }));
     await fetch('/api/auth/session', { method: 'DELETE' });
-    throw new Error('ADMIN_ACCESS_DENIED');
+    throw new Error(String(payload.error || 'ADMIN_ACCESS_DENIED'));
   }
 }
 

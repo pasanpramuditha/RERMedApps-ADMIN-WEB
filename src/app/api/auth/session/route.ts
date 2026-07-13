@@ -26,8 +26,16 @@ export async function POST(request: Request) {
     });
 
     return response;
-  } catch {
-    return NextResponse.json({ success: false, error: 'Not authorized for admin access.' }, { status: 403 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    if (message === 'Forbidden') {
+      return NextResponse.json({ success: false, error: 'This Firebase user is not listed in ADMIN_EMAILS.' }, { status: 403 });
+    }
+    if (message === 'Unauthorized') {
+      return NextResponse.json({ success: false, error: 'Firebase ID token could not be verified by the server.' }, { status: 401 });
+    }
+    console.error('Admin session creation failed:', error);
+    return NextResponse.json({ success: false, error: 'Server Firebase Admin configuration is missing or invalid.' }, { status: 500 });
   }
 }
 

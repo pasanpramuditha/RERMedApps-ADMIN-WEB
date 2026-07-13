@@ -41,8 +41,12 @@ export function LoginForm() {
                     setError('An unexpected error occurred. Please try again.');
                     break;
             }
-        } else if (err instanceof Error && err.message === 'ADMIN_ACCESS_DENIED') {
-            setError('This account is not authorized for admin access.');
+        } else if (err instanceof Error && err.message) {
+            if (err.message === 'ADMIN_ACCESS_DENIED') {
+                setError('This account is not authorized for admin access.');
+            } else {
+                setError(err.message);
+            }
         } else {
             setError('An unexpected error occurred during login.');
         }
