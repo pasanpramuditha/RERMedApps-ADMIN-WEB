@@ -77,6 +77,7 @@ export function ReplyDialog({ feedback, isOpen, onOpenChange }: ReplyDialogProps
     setIsDrafting(true);
     try {
         const contentToDraftFrom = translatedFeedback || feedback.feedback;
+        const operatorDraft = reply.trim();
         const { knowledge } = await getAppReplyKnowledge(feedback.appName, feedback.platform);
         const result = await draftReply({
           feedback: contentToDraftFrom,
@@ -88,6 +89,7 @@ export function ReplyDialog({ feedback, isOpen, onOpenChange }: ReplyDialogProps
           knownLimitations: knowledge?.known_limitations || undefined,
           replyTone: knowledge?.reply_tone || undefined,
           maxReplyChars: knowledge?.max_reply_chars || undefined,
+          operatorDraft: operatorDraft || undefined,
         });
         setReply(result.reply);
         setTranslatedReply('');
@@ -211,7 +213,7 @@ export function ReplyDialog({ feedback, isOpen, onOpenChange }: ReplyDialogProps
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="space-y-1">
                 <Label htmlFor="reply-message" className="text-sm font-semibold">Your Reply</Label>
-                <p className="text-xs text-muted-foreground">Write a direct response or draft one from the feedback.</p>
+                <p className="text-xs text-muted-foreground">Type your rough answer first, then draft will polish it. Leave blank to draft from feedback.</p>
               </div>
               <Button variant="outline" size="sm" onClick={handleDraftReply} disabled={isDrafting || isTranslating || isSending} className="rounded-xl border-white/10 bg-white/[0.04]">
                 <Wand2 className="h-4 w-4" />

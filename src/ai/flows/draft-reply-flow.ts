@@ -15,6 +15,7 @@ const DraftReplyInputSchema = z.object({
   knownLimitations: z.string().optional(),
   replyTone: z.string().optional(),
   maxReplyChars: z.number().int().positive().optional(),
+  operatorDraft: z.string().optional(),
 });
 export type DraftReplyInput = z.infer<typeof DraftReplyInputSchema>;
 
@@ -82,6 +83,12 @@ ${parsed.knownLimitations || 'No known limitations configured.'}
 
 Common reply rules:
 ${parsed.commonRules || 'Thank the user, address the issue directly, ask for details when needed, and do not promise future features.'}
+
+${parsed.operatorDraft?.trim() ? `Admin-written reply to polish:
+${parsed.operatorDraft.trim()}
+
+Use the admin-written reply as the primary intent and content. Rewrite it into a clear, professional customer reply, but do not replace it with a different answer. Preserve any policy reason, limitation, decision, or instruction the admin wrote unless it conflicts with the configured knowledge above.
+` : ''}
 
 User feedback:
 ${parsed.feedback}
