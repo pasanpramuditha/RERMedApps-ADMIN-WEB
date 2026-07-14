@@ -1,6 +1,6 @@
 'use server';
 
-import { getAuth } from 'firebase-admin/auth';
+import admin from '@/lib/firebase-admin';
 import { headers } from 'next/headers';
 import { getGlobalSettings } from '@/app/(dashboard)/settings/actions';
 import { getPhpBackendAuthHeaders } from '@/lib/server-auth';
@@ -71,7 +71,7 @@ async function getCurrentUser(idToken?: string) {
   }
 
   try {
-    const decodedToken = await getAuth().verifyIdToken(idToken);
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
     return { email: decodedToken.email || 'system@unknown', uid: decodedToken.uid || '' };
   } catch (error) {
     console.error('Error verifying token for activity log:', error);
