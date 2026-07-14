@@ -27,7 +27,13 @@ type GoogleCertCache = {
   certs: Record<string, string>;
 };
 
+type OAuthTokenCache = {
+  expiresAt: number;
+  token: string;
+};
+
 let certCache: GoogleCertCache | null = null;
+let oauthTokenCache: OAuthTokenCache | null = null;
 
 function normalizePrivateKey(value: string) {
   return value.replace(/\\n/g, '\n').replace(/^['"]+|['"]+$/g, '');
@@ -105,6 +111,14 @@ function getSessionSecret() {
   return fallback;
 }
 
+function requireServiceAccount() {
+  const serviceAccount = getServiceAccountFromEnv();
+  if (!serviceAccount?.clientEmail || !serviceAccount?.privateKey) {
+    throw new Error('Firebase service account credentials are required for user administration. Set FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_PROJECT_ID/FIREBASE_CLIENT_EMAIL/FIREBASE_PRIVATE_KEY.');
+  }
+  return serviceAccount;
+}
+
 function base64UrlEncode(value: string | Buffer) {
   return Buffer.from(value).toString('base64url');
 }
@@ -163,6 +177,159 @@ async function getGoogleSecureTokenCerts() {
   return certs;
 }
 
+async function getGoogleOAuthAccessToken() {
+  const now = Math.floor(Date.now() / 1000);
+  if (oauthTokenCache && oauthTokenCache.expiresAt > now + 60) {
+    return oauthTokenCache.token;
+  }
+
+  const serviceAccount = requireServiceAccount();
+  const assertion = jwt.sign({
+    iss: serviceAccount.clientEmail,
+    scope: 'https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/firebase',
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: now,
+    exp: now + 3600,
+  }, serviceAccount.privateKey as string, { algorithm: 'RS256' });
+
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion,
+    }),
+  });
+  const payload = await response.json().catch(() => ({})) as { access_token?: string; expires_in?: number; error?: string; error_description?: string };
+  if (!response.ok || !payload.access_token) {
+    throw new Error(payload.error_description || payload.error || `Google OAuth token request failed (${response.status}).`);
+  }
+
+  oauthTokenCache = {
+    token: payload.access_token,
+    expiresAt: now + Number(payload.expires_in || 3600),
+  };
+  return payload.access_token;
+}
+
+function identityToolkitUrl(path: string) {
+  return `https://identitytoolkit.googleapis.com/v1/projects/${encodeURIComponent(getProjectId())}${path}`;
+}
+
+async function identityToolkitRequest<T>(path: string, body: Record<string, unknown>) {
+  const token = await getGoogleOAuthAccessToken();
+  const response = await fetch(identityToolkitUrl(path), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  const payload = await response.json().catch(() => ({})) as T & { error?: { message?: string } };
+  if (!response.ok) {
+    throw new Error(payload.error?.message || `Identity Toolkit request failed (${response.status}).`);
+  }
+  return payload;
+}
+
+type IdentityToolkitUserInfo = {
+  localId?: string;
+  email?: string;
+  displayName?: string;
+  photoUrl?: string;
+  phoneNumber?: string;
+  emailVerified?: boolean;
+  disabled?: boolean;
+  validSince?: string;
+  createdAt?: string;
+  lastLoginAt?: string;
+};
+
+function formatIdentityTimestamp(value?: string) {
+  if (!value) return undefined;
+  const numeric = Number(value);
+  if (!Number.isNaN(numeric) && numeric > 0) {
+    return new Date(numeric).toUTCString();
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toUTCString();
+}
+
+function toUserRecord(user: IdentityToolkitUserInfo) {
+  const uid = String(user.localId || '');
+  return {
+    uid,
+    email: user.email || '',
+    emailVerified: Boolean(user.emailVerified),
+    displayName: user.displayName || '',
+    photoURL: user.photoUrl || '',
+    phoneNumber: user.phoneNumber || '',
+    disabled: Boolean(user.disabled),
+    metadata: {
+      creationTime: formatIdentityTimestamp(user.createdAt) || '',
+      lastSignInTime: formatIdentityTimestamp(user.lastLoginAt) || '',
+      lastRefreshTime: formatIdentityTimestamp(user.validSince ? String(Number(user.validSince) * 1000) : undefined) || '',
+    },
+    providerData: [],
+    customClaims: {},
+    toJSON() {
+      return this;
+    },
+  };
+}
+
+async function createAuthUser(payload: any) {
+  const response = await identityToolkitRequest<IdentityToolkitUserInfo>('/accounts', {
+    email: payload.email,
+    password: payload.password,
+    displayName: payload.displayName,
+    photoUrl: payload.photoURL,
+    emailVerified: payload.emailVerified,
+    phoneNumber: payload.phoneNumber,
+    disabled: payload.disabled,
+  });
+  return toUserRecord(response);
+}
+
+async function updateAuthUser(uid: string, payload: any) {
+  const response = await identityToolkitRequest<IdentityToolkitUserInfo>('/accounts:update', {
+    localId: uid,
+    email: payload.email,
+    password: payload.password,
+    displayName: payload.displayName,
+    photoUrl: payload.photoURL,
+    phoneNumber: payload.phoneNumber,
+    disableUser: payload.disabled,
+  });
+  return toUserRecord({ ...response, localId: response.localId || uid });
+}
+
+async function listAuthUsers(maxResults = 500) {
+  const response = await identityToolkitRequest<{ userInfo?: IdentityToolkitUserInfo[] }>('/accounts:query', {
+    returnUserInfo: true,
+    limit: String(Math.min(Math.max(maxResults || 500, 1), 500)),
+    sortBy: 'CREATED_AT',
+    order: 'DESC',
+  });
+  return {
+    users: (response.userInfo || []).map(toUserRecord),
+    pageToken: undefined,
+  };
+}
+
+async function getAuthUser(uid: string) {
+  const response = await identityToolkitRequest<{ users?: IdentityToolkitUserInfo[] }>('/accounts:lookup', {
+    localId: [uid],
+  });
+  const user = response.users?.[0];
+  if (!user) {
+    throw new Error(`Firebase Auth user ${uid} was not found.`);
+  }
+  return toUserRecord(user);
+}
+
 async function verifyFirebaseIdToken(idToken: string): Promise<DecodedIdToken> {
   const [encodedHeader] = idToken.split('.');
   if (!encodedHeader) {
@@ -199,10 +366,6 @@ async function verifyFirebaseIdToken(idToken: string): Promise<DecodedIdToken> {
   } as DecodedIdToken;
 }
 
-function unsupportedAdminAuthMethod(method: string): never {
-  throw new Error(`Firebase Admin SDK method ${method} is not available in this deployment build.`);
-}
-
 const auth = () => ({
   verifyIdToken: async (idToken: string, _checkRevoked?: boolean) => verifyFirebaseIdToken(idToken),
   createSessionCookie: async (idToken: string, options: { expiresIn: number }) => {
@@ -216,10 +379,10 @@ const auth = () => ({
     } as SessionPayload);
   },
   verifySessionCookie: async (sessionCookie: string, _checkRevoked?: boolean) => verifySessionPayload(sessionCookie),
-  createUser: async (_payload: any): Promise<any> => unsupportedAdminAuthMethod('createUser'),
-  updateUser: async (_uid: string, _payload: any): Promise<any> => unsupportedAdminAuthMethod('updateUser'),
-  listUsers: async (_maxResults?: number, _pageToken?: string): Promise<any> => unsupportedAdminAuthMethod('listUsers'),
-  getUser: async (_uid: string): Promise<any> => unsupportedAdminAuthMethod('getUser'),
+  createUser: async (payload: any): Promise<any> => createAuthUser(payload),
+  updateUser: async (uid: string, payload: any): Promise<any> => updateAuthUser(uid, payload),
+  listUsers: async (maxResults?: number, _pageToken?: string): Promise<any> => listAuthUsers(maxResults),
+  getUser: async (uid: string): Promise<any> => getAuthUser(uid),
 });
 
 function createDisabledFirestoreReference(): any {
