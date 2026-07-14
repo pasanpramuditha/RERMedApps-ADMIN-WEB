@@ -21,6 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { PlusCircle, CalendarIcon } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Calendar } from '../ui/calendar';
@@ -31,6 +32,7 @@ import type { FixedDeposit } from '@/app/(dashboard)/wealth-tracker/data';
 const formSchema = z.object({
   bankName: z.string().min(1, "Bank name is required"),
   amount: z.coerce.number().positive("Amount must be positive"),
+  currency: z.enum(['LKR', 'USD']).default('LKR'),
   startDate: z.date({ required_error: "Start date is required." }),
   endDate: z.date({ required_error: "End date is required." }),
   interestRate: z.coerce.number().min(0, "Interest rate cannot be negative").max(100, "Interest rate seems too high"),
@@ -57,6 +59,7 @@ export function AddFixedDepositDialog({ isEditMode = false, deposit, onSave, chi
   const defaultValues = {
       bankName: '',
       amount: undefined,
+      currency: 'LKR' as const,
       startDate: new Date(),
       endDate: new Date(),
       interestRate: undefined
@@ -66,6 +69,7 @@ export function AddFixedDepositDialog({ isEditMode = false, deposit, onSave, chi
     resolver: zodResolver(formSchema),
     defaultValues: isEditMode && deposit ? {
         ...deposit,
+        currency: deposit.currency || 'LKR',
         startDate: new Date(deposit.startDate),
         endDate: new Date(deposit.endDate),
     } : defaultValues,
@@ -76,6 +80,7 @@ export function AddFixedDepositDialog({ isEditMode = false, deposit, onSave, chi
         if (isEditMode && deposit) {
             form.reset({
                 ...deposit,
+                currency: deposit.currency || 'LKR',
                 startDate: new Date(deposit.startDate),
                 endDate: new Date(deposit.endDate),
             });
@@ -130,7 +135,34 @@ export function AddFixedDepositDialog({ isEditMode = false, deposit, onSave, chi
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
             <FormField control={form.control} name="bankName" render={({ field }) => ( <FormItem> <FormLabel>Bank Name</FormLabel> <FormControl><Input placeholder="e.g. Commercial Bank" {...field} disabled={isSubmitting} /></FormControl> <FormMessage /> </FormItem> )}/>
-            <FormField control={form.control} name="amount" render={({ field }) => ( <FormItem> <FormLabel>Amount (LKR)</FormLabel> <FormControl><Input type="number" step="0.01" placeholder="e.g. 500000.00" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : e.target.valueAsNumber)} disabled={isSubmitting} /></FormControl> <FormMessage /> </FormItem> )}/>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_120px]">
+              <FormField control={form.control} name="amount" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Amount</FormLabel>
+                  <FormControl>
+                    <Input type="number" step="0.01" placeholder="e.g. 500000.00" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : e.target.valueAsNumber)} disabled={isSubmitting} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}/>
+              <FormField control={form.control} name="currency" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Currency</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Currency" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="LKR">LKR</SelectItem>
+                      <SelectItem value="USD">USD</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}/>
+            </div>
             
             <FormField
               control={form.control}

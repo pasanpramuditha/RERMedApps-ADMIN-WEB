@@ -24,15 +24,16 @@ export const fixedDepositColumns = ({ onDelete, onEdit }: FixedDepositColumnsPro
     accessorKey: 'amount',
     header: ({ column }) => (
         <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')} className="w-full justify-end px-0">
-          Amount (LKR)
+          Amount
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
     ),
     cell: ({ row }) => {
       const amount = parseFloat(row.getValue('amount'));
+      const currency = row.original.currency || 'LKR';
       const formatted = new Intl.NumberFormat('en-US', {
         style: 'currency',
-        currency: 'LKR',
+        currency,
       }).format(amount);
       return <div className="text-right font-medium">{formatted}</div>;
     },

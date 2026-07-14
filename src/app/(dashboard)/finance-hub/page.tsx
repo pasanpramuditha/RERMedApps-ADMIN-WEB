@@ -34,12 +34,15 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   HandCoins,
-  Plus
+  Pencil,
+  Plus,
+  Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TemporalFilter } from '@/components/finance-hub/temporal-filter';
 import { DateRange } from 'react-day-picker';
@@ -53,7 +56,7 @@ import type { AppRevenueBreakdown } from '@/app/(dashboard)/dashboard/actions';
 import { listCurrencyRates, listOtherIncomes } from '@/app/(dashboard)/other-income/actions';
 import { getTaxWorkspace, type TaxLedgerEntry } from '@/app/(dashboard)/tax-returns/actions';
 import type { OtherIncome } from '@/app/(dashboard)/other-income/data';
-import { listFinanceFixedDeposits, listFinancePayouts, saveFinanceFixedDeposit, type FinanceExpense, type FinanceFixedDeposit, type FinancePayout } from './actions';
+import { deleteFinanceFixedDeposit, listFinanceFixedDeposits, listFinancePayouts, saveFinanceFixedDeposit, type FinanceExpense, type FinanceFixedDeposit, type FinancePayout } from './actions';
 
 type FinanceTotals = {
   appRevenueLkr: number;
@@ -271,6 +274,7 @@ function buildPerformanceData(
 }
 
 type FixedDepositStatus = 'Active' | 'Pending';
+type FixedDepositCurrency = 'LKR' | 'USD';
 
 const fixedDepositPageSize = 4;
 
@@ -416,6 +420,37 @@ function parseLkrAsset(value: string) {
   if (normalized.includes('m')) return numericValue * 1_000_000;
   if (normalized.includes('k')) return numericValue * 1_000;
   return numericValue;
+}
+
+function inferFixedDepositCurrency(deposit: Pick<FinanceFixedDeposit, 'capitalAsset' | 'currency'>): FixedDepositCurrency {
+  if (deposit.currency === 'USD' || /^\s*(usd|\$)/i.test(deposit.capitalAsset)) {
+    return 'USD';
+  }
+  return 'LKR';
+}
+
+function stripFixedDepositCurrencyPrefix(value: string) {
+  return value
+    .replace(/^\s*(rs\.?|lkr|usd|\$)\s*/i, '')
+    .trim();
+}
+
+function buildFixedDepositAssetValue(value: string, currency: FixedDepositCurrency) {
+  const cleanValue = stripFixedDepositCurrencyPrefix(value);
+  return currency === 'USD' ? `USD ${cleanValue}` : `Rs ${cleanValue}`;
+}
+
+function fixedDepositToLkr(deposit: FinanceFixedDeposit, usdToLkrRate: number) {
+  const amount = parseLkrAsset(deposit.capitalAsset);
+  return inferFixedDepositCurrency(deposit) === 'USD' ? amount * usdToLkrRate : amount;
+}
+
+function displayFixedDepositAsset(deposit: FinanceFixedDeposit) {
+  const value = deposit.capitalAsset.trim();
+  if (/^(rs|lkr|usd|\$)/i.test(value)) {
+    return value;
+  }
+  return inferFixedDepositCurrency(deposit) === 'USD' ? `USD ${value}` : `Rs ${value}`;
 }
 
 function normalizeTaxDate(value: string | undefined) {
@@ -618,7 +653,9 @@ export default function FinanceHubPage() {
   const [fixedDeposits, setFixedDeposits] = React.useState<FinanceFixedDeposit[]>([]);
   const [fixedDepositPage, setFixedDepositPage] = React.useState(0);
   const [isFixedDepositDialogOpen, setIsFixedDepositDialogOpen] = React.useState(false);
+  const [editingFixedDeposit, setEditingFixedDeposit] = React.useState<FinanceFixedDeposit | null>(null);
   const [fixedDepositStatus, setFixedDepositStatus] = React.useState<FixedDepositStatus>('Active');
+  const [fixedDepositCurrency, setFixedDepositCurrency] = React.useState<FixedDepositCurrency>('LKR');
   const [isSavingFixedDeposit, setIsSavingFixedDeposit] = React.useState(false);
   const [otherIncomes, setOtherIncomes] = React.useState<OtherIncome[]>([]);
   const [financePayouts, setFinancePayouts] = React.useState<FinancePayout[]>([]);
@@ -693,7 +730,7 @@ export default function FinanceHubPage() {
     const businessExpensesLkr = taxLedgerBusinessExpensesLkr;
     const otherCostsLkr = taxLedgerOtherExpensesLkr;
     const payoutsLkr = financePayouts.reduce((sum, payout) => sum + payoutToLkr(payout, usdToLkrRate), 0);
-    const fixedDepositLkr = fixedDeposits.reduce((sum, deposit) => sum + parseLkrAsset(deposit.capitalAsset), 0);
+    const fixedDepositLkr = fixedDeposits.reduce((sum, deposit) => sum + fixedDepositToLkr(deposit, usdToLkrRate), 0);
     const appRevenueLkr = taxLedgerAppRevenueLkr;
     const grossRevenueLkr = appRevenueLkr + admobRevenueLkr + otherIncomeLkr;
     const totalExpensesLkr = adExpensesLkr + businessExpensesLkr + otherCostsLkr;
@@ -756,7 +793,8 @@ export default function FinanceHubPage() {
 
   const handleAddFixedDeposit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
     const name = String(formData.get('name') || '').trim();
     const asset = String(formData.get('asset') || '').trim();
     const apyValue = String(formData.get('apy') || '').trim();
@@ -769,8 +807,10 @@ export default function FinanceHubPage() {
     const apyPercent = Number(apyValue.replace('%', ''));
     setIsSavingFixedDeposit(true);
     const result = await saveFinanceFixedDeposit({
+      ...(editingFixedDeposit ? { id: editingFixedDeposit.id } : {}),
       bankEntity: name,
-      capitalAsset: asset,
+      capitalAsset: buildFixedDepositAssetValue(asset, fixedDepositCurrency),
+      currency: fixedDepositCurrency,
       apyPercent,
       maturityDate: maturity,
       status: fixedDepositStatus,
@@ -782,8 +822,10 @@ export default function FinanceHubPage() {
     await fetchFinanceSnapshot(committedRange);
     setFixedDepositPage(0);
     setFixedDepositStatus('Active');
+    setFixedDepositCurrency('LKR');
+    setEditingFixedDeposit(null);
     setIsFixedDepositDialogOpen(false);
-    event.currentTarget.reset();
+    form.reset();
   };
 
   const summaryStats = [
@@ -1057,9 +1099,26 @@ export default function FinanceHubPage() {
                     <Landmark className="text-blue-400 w-5 h-5" />
                     <h2 className="text-lg font-black italic tracking-tighter uppercase">Bank Fixed Deposits</h2>
                 </div>
-                <Dialog open={isFixedDepositDialogOpen} onOpenChange={setIsFixedDepositDialogOpen}>
+                <Dialog
+                    open={isFixedDepositDialogOpen}
+                    onOpenChange={(open) => {
+                      setIsFixedDepositDialogOpen(open);
+                      if (!open) {
+                        setEditingFixedDeposit(null);
+                        setFixedDepositStatus('Active');
+                        setFixedDepositCurrency('LKR');
+                      }
+                    }}
+                >
                     <DialogTrigger asChild>
-                        <Button className="h-10 rounded-full bg-blue-600 px-4 text-xs font-black uppercase tracking-widest text-white hover:bg-blue-500">
+                        <Button
+                          className="h-10 rounded-full bg-blue-600 px-4 text-xs font-black uppercase tracking-widest text-white hover:bg-blue-500"
+                          onClick={() => {
+                            setEditingFixedDeposit(null);
+                            setFixedDepositStatus('Active');
+                            setFixedDepositCurrency('LKR');
+                          }}
+                        >
                             <Plus className="h-4 w-4" />
                             Add FD
                         </Button>
@@ -1071,9 +1130,9 @@ export default function FinanceHubPage() {
                                     <Landmark className="h-5 w-5" />
                                 </div>
                                 <div>
-                                    <DialogTitle className="font-black italic tracking-tight">Add Fixed Deposit</DialogTitle>
+                                    <DialogTitle className="font-black italic tracking-tight">{editingFixedDeposit ? 'Edit Fixed Deposit' : 'Add Fixed Deposit'}</DialogTitle>
                                     <DialogDescription className="mt-1 text-white/45">
-                                        Insert a bank fixed deposit into the finance hub table.
+                                        {editingFixedDeposit ? 'Update the selected fixed deposit.' : 'Insert a bank fixed deposit into the finance hub table.'}
                                     </DialogDescription>
                                 </div>
                             </div>
@@ -1081,22 +1140,36 @@ export default function FinanceHubPage() {
                         <form onSubmit={handleAddFixedDeposit} className="space-y-4 px-6 py-5">
                             <div className="space-y-2">
                                 <label className="text-xs font-bold uppercase tracking-widest text-white/45">Bank Entity</label>
-                                <Input name="name" placeholder="Commercial Bank" className="h-11 rounded-xl border-white/10 bg-white/[0.04]" required />
+                                <Input name="name" placeholder="Commercial Bank" defaultValue={editingFixedDeposit?.bankEntity || ''} className="h-11 rounded-xl border-white/10 bg-white/[0.04]" required />
+                            </div>
+                            <div className="grid grid-cols-[1fr_110px] gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold uppercase tracking-widest text-white/45">Capital Asset</label>
+                                    <Input name="asset" placeholder={fixedDepositCurrency === 'USD' ? '5,000.00' : '5.0M'} defaultValue={editingFixedDeposit ? stripFixedDepositCurrencyPrefix(editingFixedDeposit.capitalAsset) : ''} className="h-11 rounded-xl border-white/10 bg-white/[0.04]" required />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold uppercase tracking-widest text-white/45">Currency</label>
+                                    <Select value={fixedDepositCurrency} onValueChange={(value) => setFixedDepositCurrency(value as FixedDepositCurrency)}>
+                                        <SelectTrigger className="h-11 rounded-xl border-white/10 bg-white/[0.04]">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="LKR">LKR</SelectItem>
+                                            <SelectItem value="USD">USD</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <label className="text-xs font-bold uppercase tracking-widest text-white/45">Capital Asset</label>
-                                    <Input name="asset" placeholder="Rs 5.0M" className="h-11 rounded-xl border-white/10 bg-white/[0.04]" required />
-                                </div>
-                                <div className="space-y-2">
                                     <label className="text-xs font-bold uppercase tracking-widest text-white/45">APY</label>
-                                    <Input name="apy" placeholder="12.5" className="h-11 rounded-xl border-white/10 bg-white/[0.04]" required />
+                                    <Input name="apy" placeholder="12.5" defaultValue={editingFixedDeposit?.apyPercent ?? ''} className="h-11 rounded-xl border-white/10 bg-white/[0.04]" required />
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <label className="text-xs font-bold uppercase tracking-widest text-white/45">Maturity</label>
-                                    <Input name="maturity" type="date" className="h-11 rounded-xl border-white/10 bg-white/[0.04]" required />
+                                    <Input name="maturity" type="date" defaultValue={editingFixedDeposit?.maturityDate || ''} className="h-11 rounded-xl border-white/10 bg-white/[0.04]" required />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-xs font-bold uppercase tracking-widest text-white/45">Status</label>
@@ -1116,7 +1189,7 @@ export default function FinanceHubPage() {
                                     Cancel
                                 </Button>
                                 <Button type="submit" disabled={isSavingFixedDeposit} className="rounded-xl bg-blue-600 text-white hover:bg-blue-500">
-                                    {isSavingFixedDeposit ? 'Saving...' : 'Save FD'}
+                                    {isSavingFixedDeposit ? 'Saving...' : editingFixedDeposit ? 'Update FD' : 'Save FD'}
                                 </Button>
                             </DialogFooter>
                         </form>
@@ -1133,6 +1206,7 @@ export default function FinanceHubPage() {
                             <th className="pb-4 text-[10px] font-bold text-white/20 uppercase tracking-widest text-center">APY</th>
                             <th className="pb-4 text-[10px] font-bold text-white/20 uppercase tracking-widest text-center">Maturity</th>
                             <th className="pb-4 text-[10px] font-bold text-white/20 uppercase tracking-widest text-right">Status</th>
+                            <th className="pb-4 text-[10px] font-bold text-white/20 uppercase tracking-widest text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
@@ -1146,7 +1220,7 @@ export default function FinanceHubPage() {
                                     </div>
                                     {fd.bankEntity}
                                 </td>
-                                <td className="py-6 text-center italic font-black text-sm">{fd.capitalAsset}</td>
+                                <td className="py-6 text-center italic font-black text-sm">{displayFixedDepositAsset(fd)}</td>
                                 <td className="py-6 text-center font-bold text-blue-400 text-sm">{fd.apyPercent}%</td>
                                 <td className="py-6 text-center text-white/40 font-medium text-xs tracking-tighter">{fd.maturityDate.replaceAll('-', '.')}</td>
                                 <td className="py-6 text-right">
@@ -1154,12 +1228,84 @@ export default function FinanceHubPage() {
                                         {fd.status}
                                     </span>
                                 </td>
+                                <td className="py-6">
+                                    <div className="flex justify-end gap-2">
+                                        <button
+                                            type="button"
+                                            className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-white/60 transition-colors hover:border-blue-400/40 hover:text-blue-200"
+                                            onClick={() => {
+                                              setEditingFixedDeposit(fd);
+                                              setFixedDepositStatus(fd.status);
+                                              setFixedDepositCurrency(inferFixedDepositCurrency(fd));
+                                              setIsFixedDepositDialogOpen(true);
+                                            }}
+                                            aria-label={`Edit ${fd.bankEntity} fixed deposit`}
+                                        >
+                                            <Pencil className="h-4 w-4" />
+                                        </button>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <button
+                                                    type="button"
+                                                    className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-white/60 transition-colors hover:border-rose-400/40 hover:text-rose-200"
+                                                    aria-label={`Delete ${fd.bankEntity} fixed deposit`}
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent className="overflow-hidden rounded-3xl border-rose-400/20 bg-[#101014] p-0 text-white shadow-2xl">
+                                                <AlertDialogHeader className="border-b border-white/10 bg-rose-500/[0.08] px-6 py-5">
+                                                    <div className="flex items-start gap-3">
+                                                        <div className="grid h-11 w-11 place-items-center rounded-2xl border border-rose-400/25 bg-rose-500/[0.16] text-rose-100">
+                                                            <Trash2 className="h-5 w-5" />
+                                                        </div>
+                                                        <div>
+                                                            <AlertDialogTitle className="font-black italic tracking-tight text-white">
+                                                                Delete Fixed Deposit?
+                                                            </AlertDialogTitle>
+                                                            <AlertDialogDescription className="mt-1 text-sm font-medium text-white/50">
+                                                                This will remove the selected FD from the finance hub list.
+                                                            </AlertDialogDescription>
+                                                        </div>
+                                                    </div>
+                                                </AlertDialogHeader>
+                                                <div className="space-y-4 px-6 py-5">
+                                                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                                                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/30">Bank Entity</p>
+                                                        <p className="mt-2 text-base font-black text-white">{fd.bankEntity}</p>
+                                                        <div className="mt-3 flex items-center justify-between gap-4 text-sm">
+                                                            <span className="font-bold text-white/45">Capital Asset</span>
+                                                            <span className="font-black italic text-rose-100">{displayFixedDepositAsset(fd)}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <AlertDialogFooter className="border-t border-white/10 px-6 py-5">
+                                                    <AlertDialogCancel className="mt-0 rounded-xl border-white/10 bg-white/[0.04] text-white hover:bg-white/[0.08]">
+                                                        Cancel
+                                                    </AlertDialogCancel>
+                                                    <AlertDialogAction
+                                                        className="rounded-xl bg-rose-600 text-white hover:bg-rose-500"
+                                                        onClick={async () => {
+                                                          const result = await deleteFinanceFixedDeposit(fd.id);
+                                                          if (!result.error) {
+                                                            await fetchFinanceSnapshot(committedRange);
+                                                            setFixedDepositPage(0);
+                                                          }
+                                                        }}
+                                                    >
+                                                        Delete FD
+                                                    </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </div>
+                                </td>
                             </tr>
                           );
                         })}
                         {fixedDepositRows.length === 0 && (
                             <tr>
-                                <td colSpan={5} className="py-16 text-center text-sm font-semibold text-white/35">
+                                <td colSpan={6} className="py-16 text-center text-sm font-semibold text-white/35">
                                     No fixed deposits saved yet.
                                 </td>
                             </tr>

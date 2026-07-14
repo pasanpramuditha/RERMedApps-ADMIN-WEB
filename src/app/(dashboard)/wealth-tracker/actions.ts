@@ -16,6 +16,7 @@ const cashAccountsCollection = db.collection('cash_accounts');
 const fixedDepositFormSchema = z.object({
   bankName: z.string().min(1, "Bank name is required"),
   amount: z.coerce.number().positive("Amount must be positive"),
+  currency: z.enum(['LKR', 'USD']).default('LKR'),
   startDate: z.date(),
   endDate: z.date(),
   interestRate: z.coerce.number().min(0, "Interest rate cannot be negative"),
@@ -103,6 +104,7 @@ export async function listFixedDeposits(): Promise<FixedDeposit[]> {
                 id: doc.id,
                 bankName: data.bankName,
                 amount: data.amount,
+                currency: data.currency || 'LKR',
                 startDate: (data.startDate.toDate() as Date).toISOString().split('T')[0],
                 endDate: (data.endDate.toDate() as Date).toISOString().split('T')[0],
                 interestRate: data.interestRate,

@@ -37,14 +37,29 @@ export default function WealthTrackerPage() {
         fetchData();
     }, [fetchData]);
 
-    const totalFixedDeposits = fixedDeposits.reduce((acc, deposit) => acc + deposit.amount, 0);
+    const fixedDepositTotals = fixedDeposits.reduce<Record<'LKR' | 'USD', number>>((acc, deposit) => {
+        const currency = deposit.currency || 'LKR';
+        acc[currency] += deposit.amount;
+        return acc;
+    }, { LKR: 0, USD: 0 });
     const totalCashOnHand = cashAccounts.reduce((acc, account) => acc + account.balance, 0);
-    const totalWealth = totalFixedDeposits + totalCashOnHand;
+    const totalWealthLkr = fixedDepositTotals.LKR + totalCashOnHand;
 
-    const formatCurrency = (amount: number) => new Intl.NumberFormat('en-US', {
+    const formatCurrency = (amount: number, currency: 'LKR' | 'USD' = 'LKR') => new Intl.NumberFormat('en-US', {
         style: 'currency',
-        currency: 'LKR',
+        currency,
     }).format(amount);
+
+    const formatMixedFixedDepositTotal = () => {
+        const parts: string[] = [];
+        if (fixedDepositTotals.LKR > 0 || fixedDepositTotals.USD === 0) {
+            parts.push(formatCurrency(fixedDepositTotals.LKR, 'LKR'));
+        }
+        if (fixedDepositTotals.USD > 0) {
+            parts.push(formatCurrency(fixedDepositTotals.USD, 'USD'));
+        }
+        return parts.join(' + ');
+    };
 
     const handleDeleteFixedDeposit = async (id: string) => {
         const result = await deleteFixedDeposit(id);
@@ -71,7 +86,7 @@ export default function WealthTrackerPage() {
             <div>
                 <h1 className="text-2xl font-bold tracking-tight">Wealth Tracker</h1>
                 <p className="text-muted-foreground">
-                    Monitor your company's fixed deposits and cash on hand. All values in LKR.
+                    Monitor your company's fixed deposits and cash on hand.
                 </p>
             </div>
 
@@ -85,13 +100,13 @@ export default function WealthTrackerPage() {
                 <div className="grid gap-4 md:grid-cols-3">
                     <StatCard
                         title="Total Wealth"
-                        value={formatCurrency(totalWealth)}
-                        change="Fixed Deposits + On-Hand Cash"
+                        value={formatCurrency(totalWealthLkr)}
+                        change={fixedDepositTotals.USD > 0 ? `Plus ${formatCurrency(fixedDepositTotals.USD, 'USD')} in USD fixed deposits` : 'Fixed Deposits + On-Hand Cash'}
                         icon={<DollarSign className="h-4 w-4 text-muted-foreground" />}
                     />
                     <StatCard
                         title="Total in Fixed Deposits"
-                        value={formatCurrency(totalFixedDeposits)}
+                        value={formatMixedFixedDepositTotal()}
                         change={`${fixedDeposits.length} active deposits`}
                         icon={<PiggyBank className="h-4 w-4 text-muted-foreground" />}
                     />

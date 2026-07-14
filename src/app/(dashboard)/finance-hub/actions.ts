@@ -14,6 +14,7 @@ export type FinanceFixedDeposit = {
   id: string;
   bankEntity: string;
   capitalAsset: string;
+  currency?: 'USD' | 'LKR';
   apyPercent: number;
   maturityDate: string;
   status: 'Active' | 'Pending';
@@ -73,6 +74,7 @@ export type SendFinanceInvoiceInput = {
 const fixedDepositSchema = z.object({
   bankEntity: z.string().min(1),
   capitalAsset: z.string().min(1),
+  currency: z.enum(['USD', 'LKR']).default('LKR'),
   apyPercent: z.coerce.number().positive(),
   maturityDate: z.string().min(10),
   status: z.enum(['Active', 'Pending']),
@@ -338,6 +340,7 @@ export async function saveFinanceFixedDeposit(data: Omit<FinanceFixedDeposit, 'i
     ...(data.id ? { id: data.id } : {}),
     bank_entity: validation.data.bankEntity,
     capital_asset: validation.data.capitalAsset,
+    currency: validation.data.currency,
     apy_percent: String(validation.data.apyPercent),
     maturity_date: validation.data.maturityDate,
     status: validation.data.status,
