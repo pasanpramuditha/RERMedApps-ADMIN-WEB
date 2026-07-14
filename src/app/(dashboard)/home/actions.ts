@@ -2,7 +2,8 @@
 
 import { getAdmobStats, getDashboardStats, getHomeActiveFunnelStats, getHomeAppInstallStats, getHomeAppActiveUsersStats, getHomePurchaseStats } from "../dashboard/actions";
 import type { DateRange } from "react-day-picker"
-import { format, subDays } from "date-fns";
+import { subDays } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 
 import { DashboardVisibilityConfig } from "@/components/home/DashboardConfigDialog";
 import { getGlobalSettings } from "../settings/actions";
@@ -12,6 +13,8 @@ import { getPhpBackendAuthHeaders, requireAdminAuth } from '@/lib/server-auth';
 const phpApiUrl =
     process.env.NEXT_PUBLIC_RERMED_APPS_API_URL ||
     'https://admin.rermedapps.com/web/1.0/RERMedappsHandleling.php';
+
+const HOME_TIME_ZONE = 'Asia/Colombo';
 
 const AUTH_TOKEN_TTL_MS = 60_000;
 let cachedPhpAuthToken: string | null = null;
@@ -150,6 +153,10 @@ const toHomeCountNumber = (value: unknown): number => {
     }
     return 0;
 };
+
+function formatHomeDate(date: Date, pattern: string) {
+    return formatInTimeZone(date, HOME_TIME_ZONE, pattern);
+}
 
 async function postHomeAction(tag: string, body: Record<string, string> = {}) {
     const response = await fetch(phpApiUrl, {
@@ -380,11 +387,11 @@ export async function getHomeGoogleAdsStats(fromDate: string, toDate: string): P
 
 export async function getHomeDashboardStats(dateRange?: DateRange, visibilityConfig?: DashboardVisibilityConfig) {
     await requireAdminAuth();
-    const startDate = dateRange?.from ? format(dateRange.from, 'yyyy-MM') : undefined;
-    const endDate = dateRange?.to ? format(dateRange.to, 'yyyy-MM') : startDate;
+    const startDate = dateRange?.from ? formatHomeDate(dateRange.from, 'yyyy-MM') : undefined;
+    const endDate = dateRange?.to ? formatHomeDate(dateRange.to, 'yyyy-MM') : startDate;
 
-    const fromDateStr = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
-    const toDateStr = dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : fromDateStr;
+    const fromDateStr = dateRange?.from ? formatHomeDate(dateRange.from, 'yyyy-MM-dd') : formatHomeDate(new Date(), 'yyyy-MM-dd');
+    const toDateStr = dateRange?.to ? formatHomeDate(dateRange.to, 'yyyy-MM-dd') : fromDateStr;
     const isVisible = (key: string) => visibilityConfig?.[key] !== false;
 
     const needsDashboardStats =
@@ -504,7 +511,7 @@ export async function getDetailedPurchaseEvents(period: 'today' | 'yesterday' | 
         from = subDays(today, 6);
     }
 
-    const result = await getHomePurchaseStats(format(from, 'yyyy-MM-dd'), format(to, 'yyyy-MM-dd'));
+    const result = await getHomePurchaseStats(formatHomeDate(from, 'yyyy-MM-dd'), formatHomeDate(to, 'yyyy-MM-dd'));
     return result.purchases;
 }
 
