@@ -52,6 +52,21 @@ export type HomeMonthlyRevenueStats = {
     rows: HomeMonthlyRevenueRow[];
 };
 
+export type HomeDailyIncomeRange = 30 | 50;
+
+export type HomeDailyIncomeRow = {
+    date: string;
+    label: string;
+    androidRevenue: number;
+    iosRevenue: number;
+    total: number;
+};
+
+export type HomeDailyIncomeStats = {
+    days: HomeDailyIncomeRange;
+    rows: HomeDailyIncomeRow[];
+};
+
 const defaultHomeVisibility: Record<string, boolean> = {
     netRevenue: true,
     appInstalls: true,
@@ -62,6 +77,7 @@ const defaultHomeVisibility: Record<string, boolean> = {
     activeFunnel: true,
     purchaseEventsDetails: true,
     admobStatus: true,
+    dailyRevenueTrend: true,
     revenueBreakdown: true,
     referralSource: true,
     adExpenses: true,
@@ -563,6 +579,64 @@ export async function getHomeMonthlyRevenueStats(months: HomeRevenueRange): Prom
         return {
             data: empty,
             error: error?.message || 'Failed to load monthly revenue chart.',
+        };
+    }
+}
+
+export async function getHomeDailyIncomeStats(days: HomeDailyIncomeRange): Promise<{ data: HomeDailyIncomeStats; error?: string }> {
+    await requireAdminAuth();
+    const safeDays: HomeDailyIncomeRange = days === 50 ? 50 : 30;
+
+    const empty: HomeDailyIncomeStats = {
+        days: safeDays,
+        rows: [],
+    };
+
+    try {
+        const payload = await postAuthedHomeAction('GET_HOME_DAILY_INCOME_STATS', {
+            days: String(safeDays),
+        });
+
+        if (payload?.error_msg && !payload?.daily_income && !payload?.dailyIncome && !payload?.rows && !payload?.data?.rows) {
+            return {
+                data: empty,
+                error: payload?.error_msg || 'Failed to load daily income chart.',
+            };
+        }
+
+        const rawRows =
+            (Array.isArray(payload.daily_income?.rows) && payload.daily_income.rows) ||
+            (Array.isArray(payload.dailyIncome?.rows) && payload.dailyIncome.rows) ||
+            (Array.isArray(payload.rows) && payload.rows) ||
+            (Array.isArray(payload.data?.rows) && payload.data.rows) ||
+            [];
+
+        const rows = rawRows.map((row: any) => {
+            const date = String(row.date || row.day || row.transactionDate || row.reportDate || '');
+            return {
+                date,
+                label: String(row.label || row.day_label || row.date_label || row.date || date),
+                androidRevenue: Number(row.androidRevenue ?? row.android_income ?? row.android ?? row.androidTotal ?? 0),
+                iosRevenue: Number(row.iosRevenue ?? row.ios_income ?? row.ios ?? row.appleRevenue ?? row.apple ?? 0),
+                total: Number(row.total ?? row.totalRevenue ?? row.income ?? 0),
+            };
+        }).filter((row: HomeDailyIncomeRow) => row.date);
+
+        const normalizedRows = rows.map((row) => ({
+            ...row,
+            total: row.total || Number((row.androidRevenue + row.iosRevenue).toFixed(2)),
+        }));
+
+        return {
+            data: {
+                days: safeDays,
+                rows: normalizedRows,
+            },
+        };
+    } catch (error: any) {
+        return {
+            data: empty,
+            error: error?.message || 'Failed to load daily income chart.',
         };
     }
 }

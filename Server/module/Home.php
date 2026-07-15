@@ -24,6 +24,10 @@ if ($tag === "GET_HOME_MONTHLY_REVENUE_STATS") {
     handle_home_monthly_revenue_stats($main_mysqli);
 }
 
+if ($tag === "GET_HOME_DAILY_INCOME_STATS") {
+    handle_home_daily_income_stats($main_mysqli);
+}
+
 if ($tag === "GET_HOME_ACTIVE_FUNNEL") {
     handle_home_active_funnel($main_mysqli);
 }
@@ -97,6 +101,21 @@ function handle_home_monthly_revenue_stats($main_mysqli): void
     home_json_response([
         "success" => true,
         "revenue" => GetHomeMonthlyRevenueStats($main_mysqli, $months)
+    ]);
+}
+
+function handle_home_daily_income_stats($main_mysqli): void
+{
+    home_require_main_db_request();
+
+    $days = (int)($_POST['days'] ?? 30);
+    if (!in_array($days, [30, 50], true)) {
+        $days = 30;
+    }
+
+    home_json_response([
+        "success" => true,
+        "daily_income" => GetHomeDailyIncomeStats($main_mysqli, $days)
     ]);
 }
 
@@ -498,6 +517,112 @@ function GetHomeMonthlyRevenueStats(mysqli $main_mysqli, int $months): array
     return [
         'months' => $months,
         'rows' => $rows,
+    ];
+}
+
+function GetHomeDailyIncomeStats(mysqli $main_mysqli, int $days): array
+{
+    $tz = new DateTimeZone('Asia/Colombo');
+    $end = new DateTime('today', $tz);
+    $start = (clone $end)->modify('-' . ($days - 1) . ' days');
+    $usdToLkr = home_get_currency_rate($main_mysqli, 'LKR');
+
+    $rows = [];
+    for ($cursor = clone $start; $cursor <= $end; $cursor->modify('+1 day')) {
+        $date = $cursor->format('Y-m-d');
+        $rows[$date] = [
+            'date' => $date,
+            'label' => $cursor->format('M j'),
+            'androidRevenue' => 0.0,
+            'iosRevenue' => 0.0,
+            'total' => 0.0,
+        ];
+    }
+
+    $fromDate = $start->format('Y-m-d');
+    $toDate = $end->format('Y-m-d');
+    $fromDateTime = $fromDate . ' 00:00:00';
+    $toDateTime = $toDate . ' 23:59:59';
+
+    $androidMysqli = null;
+    try {
+        $androidMysqli = SwapDatabase($main_mysqli, 'rermedap_admin');
+        $androidStmt = $androidMysqli->prepare(
+            "SELECT DATE(purchased_date) AS report_date, COALESCE(SUM(amount_lkr), 0) AS revenue_lkr
+             FROM fnd_global_purchase_tab
+             WHERE purchased_date BETWEEN ? AND ?
+               AND COALESCE(amount_lkr, 0) > 0
+               AND (
+                 UPPER(TRIM(COALESCE(status, ''))) LIKE '%PURCHASED%'
+                 OR UPPER(TRIM(COALESCE(status, ''))) LIKE '%RENEWED%'
+                 OR UPPER(TRIM(COALESCE(status, ''))) LIKE '%RECOVERED%'
+                 OR UPPER(TRIM(COALESCE(status, ''))) LIKE '%CHARGED%'
+               )
+               AND UPPER(TRIM(COALESCE(status, ''))) NOT LIKE '%REFUND%'
+               AND UPPER(TRIM(COALESCE(status, ''))) NOT LIKE '%REVOK%'
+               AND UPPER(TRIM(COALESCE(status, ''))) NOT LIKE '%CANCEL%'
+             GROUP BY DATE(purchased_date)"
+        );
+        if ($androidStmt) {
+            $androidStmt->bind_param('ss', $fromDateTime, $toDateTime);
+            if ($androidStmt->execute()) {
+                foreach (get_result($androidStmt) as $row) {
+                    $date = (string)($row['report_date'] ?? '');
+                    if (!isset($rows[$date])) {
+                        continue;
+                    }
+                    $rows[$date]['androidRevenue'] = round(((float)($row['revenue_lkr'] ?? 0)) / $usdToLkr, 2);
+                    $rows[$date]['total'] += $rows[$date]['androidRevenue'];
+                }
+            }
+            $androidStmt->close();
+        }
+    } catch (Throwable $error) {
+        // Keep the chart usable even if the Android purchase database is unavailable.
+    } finally {
+        if ($androidMysqli instanceof mysqli) {
+            $androidMysqli->close();
+        }
+    }
+
+    $iosStmt = $main_mysqli->prepare(
+        "SELECT DATE(created_at) AS report_date, COALESCE(SUM(amount_lkr), 0) AS revenue_lkr
+         FROM ios_subscription_events
+         WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+           AND LOWER(COALESCE(environment, '')) = 'production'
+           AND UPPER(TRIM(COALESCE(notification_type, ''))) IN ('DID_RENEW', 'SUBSCRIBED', 'ONE_TIME_CHARGE')
+           AND COALESCE(amount_lkr, 0) > 0
+           AND NOT (
+             LOWER(TRIM(COALESCE(duration, ''))) = 'yearly'
+             AND LOWER(TRIM(COALESCE(status, ''))) = 'trial'
+           )
+           AND UPPER(TRIM(COALESCE(subtype, ''))) NOT LIKE '%REVOKE%'
+           AND UPPER(TRIM(COALESCE(status, ''))) NOT IN ('EXPIRED', 'REVOKED', 'REFUNDED', 'CANCELLED')
+         GROUP BY DATE(created_at)"
+    );
+    if ($iosStmt) {
+        $iosStmt->bind_param('ss', $fromDateTime, $toDateTime);
+        if ($iosStmt->execute()) {
+            foreach (get_result($iosStmt) as $row) {
+                $date = (string)($row['report_date'] ?? '');
+                if (!isset($rows[$date])) {
+                    continue;
+                }
+                $rows[$date]['iosRevenue'] = round(((float)($row['revenue_lkr'] ?? 0)) / $usdToLkr, 2);
+                $rows[$date]['total'] += $rows[$date]['iosRevenue'];
+            }
+        }
+        $iosStmt->close();
+    }
+
+    foreach ($rows as &$row) {
+        $row['total'] = round((float)$row['total'], 2);
+    }
+    unset($row);
+
+    return [
+        'days' => $days,
+        'rows' => array_values($rows),
     ];
 }
 

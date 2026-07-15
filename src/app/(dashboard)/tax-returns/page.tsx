@@ -2030,20 +2030,37 @@ export default function TaxReturnsPage() {
     if (!editingEmail) return;
 
     const formData = new FormData(event.currentTarget);
+    const nextParsedInvoiceAmount = Number(formData.get('parsedInvoiceAmount') || 0);
+    const nextParsedCurrency = String(formData.get('parsedCurrency') || 'LKR').toUpperCase() as 'LKR' | 'USD';
+    const nextParsedInvoiceDate = normalizeDateInputValue(String(formData.get('parsedInvoiceDate') || ''));
+    const nextParsedVendor = String(formData.get('parsedVendor') || '').trim();
+    const nextParsedInvoiceNo = String(formData.get('parsedInvoiceNo') || '').trim();
+    const nextSuggestedCategory = String(formData.get('suggestedCategory') || '').trim();
     const nextEmail = {
       id: editingEmail.id,
       subject: editingEmail.subject,
       bodyPreview: editingEmail.bodyPreview || '',
       suggestedType: editingEmail.suggestedType,
-      suggestedCategory: editingEmail.suggestedCategory,
+      suggestedCategory: nextSuggestedCategory || editingEmail.suggestedCategory,
       suggestedSubcategory: editingEmail.suggestedSubcategory || '',
-      amount: Number(formData.get('amount') || 0),
-      currency: String(formData.get('currency') || 'LKR') as 'LKR' | 'USD',
+      amount: nextParsedInvoiceAmount,
+      currency: nextParsedCurrency,
       registryDestination: editingEmail.registryDestination || '',
+      parsedInvoiceNo: nextParsedInvoiceNo,
+      parsedInvoiceDate: nextParsedInvoiceDate,
+      parsedVendor: nextParsedVendor,
+      parsedInvoiceAmount: nextParsedInvoiceAmount,
+      parsedCurrency: nextParsedCurrency,
     };
 
     if (!/^\d+$/.test(editingEmail.id)) {
       setEmailQueue((rows) => rows.map((row) => row.id === editingEmail.id ? { ...row, ...nextEmail } : row));
+      if (nextParsedInvoiceDate) {
+        setInvoiceDateSelections((state) => ({ ...state, [editingEmail.id]: nextParsedInvoiceDate }));
+      }
+      if (nextSuggestedCategory) {
+        setEmailCategorySelections((state) => ({ ...state, [editingEmail.id]: nextSuggestedCategory }));
+      }
       setEditingEmail(null);
       setMessage('Email approval updated.');
       return;
@@ -4036,18 +4053,34 @@ export default function TaxReturnsPage() {
               </div>
             </div>
           </DialogHeader>
-          {editingEmail ? (
+  {editingEmail ? (
             <form onSubmit={handleUpdateEmail} className="grid gap-4 p-6 md:grid-cols-2 xl:grid-cols-6">
-              <label className="space-y-2 xl:col-span-3">
-                <span className="text-[10px] font-black uppercase tracking-[0.16em] text-white/35">Amount</span>
-                <input name="amount" type="number" step="0.01" min="0" required defaultValue={editingEmail.amount} className="h-11 w-full rounded-xl border border-white/10 bg-[#080D18] px-3 text-sm font-semibold text-white outline-none focus:border-cyan-300/40" />
+              <label className="space-y-2 md:col-span-2 xl:col-span-3">
+                <span className="text-[10px] font-black uppercase tracking-[0.16em] text-white/35">Category</span>
+                <input name="suggestedCategory" defaultValue={editingEmail.suggestedCategory} required className="h-11 w-full rounded-xl border border-white/10 bg-[#080D18] px-3 text-sm font-semibold text-white outline-none focus:border-cyan-300/40" />
               </label>
-              <label className="space-y-2 xl:col-span-3">
+              <label className="space-y-2 md:col-span-2 xl:col-span-3">
+                <span className="text-[10px] font-black uppercase tracking-[0.16em] text-white/35">Invoice No</span>
+                <input name="parsedInvoiceNo" defaultValue={editingEmail.parsedInvoiceNo || ''} placeholder="INV-0001" className="h-11 w-full rounded-xl border border-white/10 bg-[#080D18] px-3 text-sm font-semibold text-white outline-none focus:border-cyan-300/40" />
+              </label>
+              <label className="space-y-2 md:col-span-2 xl:col-span-3">
+                <span className="text-[10px] font-black uppercase tracking-[0.16em] text-white/35">Vendor</span>
+                <input name="parsedVendor" defaultValue={editingEmail.parsedVendor || ''} placeholder="Vendor name" className="h-11 w-full rounded-xl border border-white/10 bg-[#080D18] px-3 text-sm font-semibold text-white outline-none focus:border-cyan-300/40" />
+              </label>
+              <label className="space-y-2 md:col-span-1 xl:col-span-3">
+                <span className="text-[10px] font-black uppercase tracking-[0.16em] text-white/35">AI Amount</span>
+                <input name="parsedInvoiceAmount" type="number" step="0.01" min="0" defaultValue={editingEmail.parsedInvoiceAmount ?? editingEmail.amount} className="h-11 w-full rounded-xl border border-white/10 bg-[#080D18] px-3 text-sm font-semibold text-white outline-none focus:border-cyan-300/40" />
+              </label>
+              <label className="space-y-2 md:col-span-1 xl:col-span-3">
                 <span className="text-[10px] font-black uppercase tracking-[0.16em] text-white/35">Currency</span>
-                <select name="currency" defaultValue={editingEmail.currency} className="h-11 w-full rounded-xl border border-white/10 bg-[#080D18] px-3 text-sm font-semibold text-white outline-none focus:border-cyan-300/40">
+                <select name="parsedCurrency" defaultValue={editingEmail.parsedCurrency || editingEmail.currency} className="h-11 w-full rounded-xl border border-white/10 bg-[#080D18] px-3 text-sm font-semibold text-white outline-none focus:border-cyan-300/40">
                   <option value="LKR">LKR</option>
                   <option value="USD">USD</option>
                 </select>
+              </label>
+              <label className="space-y-2 md:col-span-2 xl:col-span-3">
+                <span className="text-[10px] font-black uppercase tracking-[0.16em] text-white/35">Invoice Date</span>
+                <input name="parsedInvoiceDate" type="date" defaultValue={normalizeDateInputValue(editingEmail.parsedInvoiceDate) || ''} className="h-11 w-full rounded-xl border border-white/10 bg-[#080D18] px-3 text-sm font-semibold text-white outline-none [color-scheme:dark] focus:border-cyan-300/40" />
               </label>
               <div className="flex flex-col gap-3 border-t border-white/10 pt-5 sm:flex-row sm:justify-end xl:col-span-6">
                 <Button type="button" variant="outline" onClick={() => setEditingEmail(null)} className="h-11 rounded-xl border-white/10 bg-white/[0.03] px-5 text-xs font-black text-white/70 hover:bg-white/10 hover:text-white">

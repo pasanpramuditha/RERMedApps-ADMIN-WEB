@@ -254,6 +254,21 @@ export default function SearchUserPage() {
   const [hasSearched, setHasSearched] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
+  const appInstallCountByEmail = React.useMemo(() => {
+    const counts = new Map<string, Set<string>>();
+
+    users.forEach((user) => {
+      const email = user.email.trim().toLowerCase();
+      if (!email) return;
+
+      const bucket = counts.get(email) ?? new Set<string>();
+      bucket.add(user.dbName || user.appId || user.appName);
+      counts.set(email, bucket);
+    });
+
+    return new Map(Array.from(counts.entries()).map(([email, appsSet]) => [email, appsSet.size]));
+  }, [users]);
+
   const handleSearch = React.useCallback(async () => {
     const email = emailSearch.trim();
     if (!email) return;
@@ -334,7 +349,7 @@ export default function SearchUserPage() {
 
       {hasSearched && (
         <RegisteredUsersDataTable
-          columns={columns({ isReturningUser: () => false, activeTab: 'today' })}
+          columns={columns({ isReturningUser: () => false, activeTab: 'today', appInstallCountByEmail })}
           data={users}
           isLoading={loadingUsers}
           meta={{ onAction: handleSearch }}

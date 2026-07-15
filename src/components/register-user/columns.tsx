@@ -16,15 +16,16 @@ const languageFlags: Record<string, string> = {
     'ZH': '🇨🇳', 'KO': '🇰🇷', 'JA': '🇯🇵', 'ID': '🇮🇩', 'IT': '🇮🇹', 'TR': '🇹🇷', 'VI': '🇻🇳'
 };
 
-const hasPurchasePremium = (user: RegisteredUser): boolean => user.purchase_premium === true;
+const hasPurchasePremium = (user: RegisteredUser): boolean => Number(user.purchase_count ?? 0) > 0 || user.purchase_premium === true;
 const hasRegistrationPremium = (user: RegisteredUser): boolean => Number(user.premium) === 1;
 
 interface ColumnsProps {
   isReturningUser: (user: RegisteredUser) => boolean;
   activeTab: string;
+  appInstallCountByEmail?: Map<string, number>;
 }
 
-export const columns = ({ isReturningUser, activeTab }: ColumnsProps): ColumnDef<RegisteredUser>[] => [
+export const columns = ({ isReturningUser, activeTab, appInstallCountByEmail = new Map() }: ColumnsProps): ColumnDef<RegisteredUser>[] => [
   {
     accessorKey: 'appName',
     header: 'App',
@@ -52,6 +53,7 @@ export const columns = ({ isReturningUser, activeTab }: ColumnsProps): ColumnDef
         const userType = user.userType;
         const purchasePremium = hasPurchasePremium(user);
         const registrationPremium = hasRegistrationPremium(user);
+        const appCount = appInstallCountByEmail.get(user.email.trim().toLowerCase()) ?? 1;
         
         let avatarBgClass = 'bg-muted';
         let avatarTextClass = 'text-muted-foreground';
@@ -76,22 +78,24 @@ export const columns = ({ isReturningUser, activeTab }: ColumnsProps): ColumnDef
         return (
             <div className="flex min-w-0 items-center gap-3">
                 <Avatar className="h-9 w-9 border border-white/10">
-                    <AvatarFallback className={cn(avatarBgClass, avatarTextClass)}>G</AvatarFallback>
+                    <AvatarFallback className={cn(avatarBgClass, avatarTextClass)} title={user.appName}>
+                        {appCount > 99 ? '99+' : appCount}
+                    </AvatarFallback>
                 </Avatar>
                 <div className="flex min-w-0 flex-col">
                     <span className="truncate font-semibold text-white">{user.email}</span>
                     <span className="flex flex-wrap items-center gap-2 text-xs text-white/40">
-                        <span className="truncate">{user.appName}</span>
                         {purchasePremium && (
-                            <span className="rounded-full border border-yellow-500/40 bg-yellow-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-yellow-300">
+                            <span className="rounded-full border border-amber-400/35 bg-amber-400/12 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.16em] text-amber-200">
                                 Premium
                             </span>
                         )}
                         {registrationPremium && (
-                            <span className="rounded-full border border-red-500/40 bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-300">
+                            <span className="rounded-full border border-red-500/35 bg-red-500/12 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.16em] text-red-200">
                                 Force Premium
                             </span>
                         )}
+                        <span className="truncate">{user.appName}</span>
                     </span>
                 </div>
             </div>

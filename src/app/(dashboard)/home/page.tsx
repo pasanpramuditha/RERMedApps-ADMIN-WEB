@@ -11,6 +11,7 @@ import { StatCard } from '@/components/home/StatCard';
 import { ActiveFunnelCard } from '@/components/home/ActiveFunnelCard';
 import { PurchaseEventsCard } from '@/components/home/PurchaseEventsCard';
 import { AdmobStatusCard } from '@/components/home/AdmobStatusCard';
+import { DailyIncomeTrendChart } from '@/components/home/DailyIncomeTrendChart';
 import { RevenueBreakdownChart } from '@/components/home/RevenueBreakdownChart';
 import { ReferralSourceCard } from '@/components/home/ReferralSourceCard';
 import { AdExpensesCard } from '@/components/home/AdExpensesCard';
@@ -41,6 +42,7 @@ const HOME_DASHBOARD_ITEMS: ConfigItem[] = [
   { key: 'activeFunnel', label: 'Active Funnel', description: 'Show breakdown of active subscriptions' },
   { key: 'purchaseEventsDetails', label: 'Purchase Events Details', description: 'Show detailed recent purchase counts' },
   { key: 'admobStatus', label: 'Admob Status', description: 'Show Admob revenue, impressions, and CTR' },
+  { key: 'dailyRevenueTrend', label: 'Daily Income Trend', description: 'Show Android and iOS income over the last 30 or 50 days' },
   { key: 'revenueBreakdown', label: 'Monthly Revenue Chart', description: 'Show Android, iOS, and AdMob monthly revenue chart' },
   { key: 'referralSource', label: 'Installation Referral Source', description: 'Show install acquisition sources by platform' },
   { key: 'adExpenses', label: 'Ad Expenses', description: 'Show ad costs, paid clicks, and paid revenue' },
@@ -450,6 +452,12 @@ export default function HomePage() {
             </>
          )}
       </div>
+
+      {(visibilityConfig['dailyRevenueTrend'] ?? true) && (
+        <div className="w-full">
+          <DailyIncomeTrendChart />
+        </div>
+      )}
 
       {(visibilityConfig['revenueBreakdown'] ?? true) && (
         <div className="w-full">

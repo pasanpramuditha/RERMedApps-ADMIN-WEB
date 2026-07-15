@@ -24,11 +24,15 @@ import {
 import { Skeleton } from '../ui/skeleton';
 import { DataTablePagination } from '../data-table-pagination';
 import { Loader2, Users } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   isLoading: boolean;
+  totalCount?: number;
+  activeFilter?: 'all' | 'premium' | 'free';
+  onFilterChange?: (value: 'all' | 'premium' | 'free') => void;
   meta?: any;
 }
 
@@ -36,6 +40,9 @@ export function RegisteredUsersDataTable<TData, TValue>({
   columns,
   data,
   isLoading,
+  totalCount,
+  activeFilter = 'all',
+  onFilterChange,
   meta,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([
@@ -58,15 +65,45 @@ export function RegisteredUsersDataTable<TData, TValue>({
   return (
     <section className="overflow-hidden rounded-3xl border border-white/10 bg-[#0b0c11] shadow-2xl shadow-black/20">
       <div className="flex flex-col gap-1 border-b border-white/10 px-5 py-4">
-        <div className="flex items-center gap-2 text-lg font-semibold text-white">
-          <Users className="h-4 w-4 text-emerald-300" />
-          User Records
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-lg font-semibold text-white">
+              <Users className="h-4 w-4 text-emerald-300" />
+              User Records
+            </div>
+            <p className="text-sm text-white/45">
+              {isLoading
+                ? 'Loading user records for the selected period...'
+                : `${data.length.toLocaleString()} visible row(s)${typeof totalCount === 'number' ? ` from ${totalCount.toLocaleString()} total` : ''}.`}
+            </p>
+          </div>
+          {onFilterChange && (
+            <div className="inline-flex rounded-full border border-white/10 bg-white/[0.03] p-1">
+              {[
+                { value: 'all', label: 'All Users' },
+                { value: 'premium', label: 'Premium' },
+                { value: 'free', label: 'Free' },
+              ].map((item) => {
+                const active = activeFilter === item.value;
+                return (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => onFilterChange(item.value as 'all' | 'premium' | 'free')}
+                    className={cn(
+                      'rounded-full px-3 py-1.5 text-xs font-semibold transition-colors',
+                      active
+                        ? 'bg-blue-500/20 text-blue-100 shadow-sm shadow-blue-950/20'
+                        : 'text-white/50 hover:bg-white/[0.05] hover:text-white/80'
+                    )}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
-        <p className="text-sm text-white/45">
-          {isLoading
-            ? 'Loading user records for the selected period...'
-            : `${data.length.toLocaleString()} row(s) loaded for the selected period.`}
-        </p>
       </div>
       <div className="p-5">
       {isLoading && (

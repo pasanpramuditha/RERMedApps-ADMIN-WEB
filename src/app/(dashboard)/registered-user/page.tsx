@@ -21,6 +21,7 @@ import { AndroidAnalysisHelpDialog } from '@/components/dashboard/android-analys
 import { differenceInHours } from 'date-fns';
 
 type Period = 'today' | 'yesterday' | 'last7days' | 'this_month' | 'last_month' | 'last3months' | 'last6months' | 'last_year';
+type UserFilter = 'all' | 'premium' | 'free';
 
 const periodTabs: Array<{ value: Period; label: string }> = [
     { value: 'today', label: 'Today' },
@@ -83,6 +84,7 @@ export default function RegisteredUserPage() {
     const [loadingApps, setLoadingApps] = React.useState(true);
     const [error, setError] = React.useState<string | null>(null);
     const [activeTab, setActiveTab] = React.useState<Period>('today');
+    const [userFilter, setUserFilter] = React.useState<UserFilter>('all');
     const [autoRefreshInterval, setAutoRefreshInterval] = React.useState<string | null>(null);
     const [isAutoRefreshing, setIsAutoRefreshing] = React.useState(false);
     const intervalRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -196,6 +198,30 @@ export default function RegisteredUserPage() {
     const activeTabLoaded = loadedTabs[activeTab];
     const activeTabLoading = loadingApps || loadingPeriod === activeTab || (loading && !activeTabLoaded);
 
+    const visibleUsers = React.useMemo(() => {
+        return users.filter((user) => {
+            const isPremium = Number(user.purchase_count ?? 0) > 0 || Boolean(user.purchase_premium) || Number(user.premium) === 1;
+            if (userFilter === 'premium') return isPremium;
+            if (userFilter === 'free') return !isPremium;
+            return true;
+        });
+    }, [users, userFilter]);
+
+    const appInstallCountByEmail = React.useMemo(() => {
+        const counts = new Map<string, Set<string>>();
+
+        users.forEach((user) => {
+            const email = user.email.trim().toLowerCase();
+            if (!email) return;
+
+            const bucket = counts.get(email) ?? new Set<string>();
+            bucket.add(user.dbName || user.appId || user.appName);
+            counts.set(email, bucket);
+        });
+
+        return new Map(Array.from(counts.entries()).map(([email, appsSet]) => [email, appsSet.size]));
+    }, [users]);
+
     const returningUsersCount = React.useMemo(() => users.filter(user => isReturningUser(user)).length, [users]);
 
     return (
@@ -301,8 +327,11 @@ export default function RegisteredUserPage() {
                         </div>
                     ) : (
                         <RegisteredUsersDataTable
-                            columns={columns({ isReturningUser: isReturningUser, activeTab })}
-                            data={users}
+                            totalCount={users.length}
+                            activeFilter={userFilter}
+                            onFilterChange={setUserFilter}
+                            columns={columns({ isReturningUser: isReturningUser, activeTab, appInstallCountByEmail })}
+                            data={visibleUsers}
                             isLoading={activeTabLoading || loadingCounts}
                             meta={{ onAction: () => fetchDataForTab(activeTab) }}
                         />

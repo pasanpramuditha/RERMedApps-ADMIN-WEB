@@ -546,7 +546,25 @@ export async function approveTaxEmailGroup(
   };
 }
 
-export async function updateTaxEmail(data: Pick<TaxEmailQueueItem, 'id' | 'subject' | 'bodyPreview' | 'suggestedType' | 'suggestedCategory' | 'suggestedSubcategory' | 'amount' | 'currency' | 'registryDestination'>): Promise<ActionResult> {
+export async function updateTaxEmail(
+  data: Pick<
+    TaxEmailQueueItem,
+    | 'id'
+    | 'subject'
+    | 'bodyPreview'
+    | 'suggestedType'
+    | 'suggestedCategory'
+    | 'suggestedSubcategory'
+    | 'amount'
+    | 'currency'
+    | 'registryDestination'
+    | 'parsedInvoiceNo'
+    | 'parsedInvoiceDate'
+    | 'parsedVendor'
+    | 'parsedInvoiceAmount'
+    | 'parsedCurrency'
+  >,
+): Promise<ActionResult> {
   await requireAdminAuth();
   if (!data.id || !data.subject || !data.suggestedType || !data.suggestedCategory || data.amount < 0) {
     return { error: 'Required email approval fields are missing.' };
@@ -562,6 +580,11 @@ export async function updateTaxEmail(data: Pick<TaxEmailQueueItem, 'id' | 'subje
     amount: String(data.amount),
     currency: data.currency,
     registry_destination: data.registryDestination || '',
+    parsed_invoice_no: data.parsedInvoiceNo || '',
+    parsed_invoice_date: data.parsedInvoiceDate || '',
+    parsed_vendor: data.parsedVendor || '',
+    parsed_invoice_amount: data.parsedInvoiceAmount == null ? '' : String(data.parsedInvoiceAmount),
+    parsed_currency: data.parsedCurrency || '',
   });
 
   if (!payload.success) return { error: apiError(payload, 'Failed to update email approval.'), debug: payload };

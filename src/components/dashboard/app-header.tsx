@@ -8,6 +8,8 @@ import {
   Menu,
   LogOut,
   User as UserIcon,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,6 +33,8 @@ import { EditUserDialog } from '../user-control/edit-user-dialog';
 export function AppHeader() {
   const { user, logout } = useAuth();
   const [logoUrl, setLogoUrl] = React.useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = React.useState(false);
+  const [canFullscreen, setCanFullscreen] = React.useState(false);
   
   const userInitial = user?.displayName?.split(' ').map(n => n[0]).join('') || user?.email?.[0]?.toUpperCase() || 'A';
 
@@ -41,6 +45,29 @@ export function AppHeader() {
       setLogoUrl(settings.company_logo_url || null);
     }
     fetchLogo();
+  }, []);
+
+  React.useEffect(() => {
+    setCanFullscreen(Boolean(document.fullscreenEnabled));
+    const syncFullscreenState = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    syncFullscreenState();
+    document.addEventListener('fullscreenchange', syncFullscreenState);
+    return () => document.removeEventListener('fullscreenchange', syncFullscreenState);
+  }, []);
+
+  const toggleFullscreen = React.useCallback(async () => {
+    if (!document.fullscreenEnabled) return;
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await document.documentElement.requestFullscreen();
+      }
+    } catch (error) {
+      console.error('Fullscreen toggle failed:', error);
+    }
   }, []);
   
   const profileData = user ? {
@@ -97,6 +124,17 @@ export function AppHeader() {
       </div>
 
       <div className="flex items-center gap-4">
+        {canFullscreen && (
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={toggleFullscreen}
+            aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+          >
+            {isFullscreen ? <Minimize2 className="h-[1.1rem] w-[1.1rem]" /> : <Maximize2 className="h-[1.1rem] w-[1.1rem]" />}
+          </Button>
+        )}
         <ThemeToggle />
 
         <DropdownMenu>
