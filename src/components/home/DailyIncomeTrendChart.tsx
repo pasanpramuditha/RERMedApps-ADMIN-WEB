@@ -24,6 +24,10 @@ const chartConfig = {
     label: 'iOS Income',
     color: '#3b82f6',
   },
+  total: {
+    label: 'Total Income',
+    color: '#ef4444',
+  },
 } satisfies ChartConfig;
 
 const rangeOptions: Array<{ value: HomeDailyIncomeRange; label: string }> = [
@@ -83,6 +87,7 @@ function DailyIncomeTooltip({ active, payload, label }: any) {
 
 export function DailyIncomeTrendChart() {
   const [range, setRange] = React.useState<HomeDailyIncomeRange>(30);
+  const [showTotalLine, setShowTotalLine] = React.useState(true);
   const [rows, setRows] = React.useState<HomeDailyIncomeRow[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState('');
@@ -138,6 +143,20 @@ export function DailyIncomeTrendChart() {
           <Badge className="rounded-full border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-cyan-100 hover:bg-cyan-400/10">
             {compactCurrency(totals.total)}
           </Badge>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => setShowTotalLine((value) => !value)}
+            className={[
+              'h-8 rounded-full border px-3 text-xs font-black uppercase tracking-wider',
+              showTotalLine
+                ? 'border-red-300/30 bg-red-500/15 text-red-100 hover:bg-red-500/20'
+                : 'border-white/10 bg-white/[0.03] text-white/45 hover:bg-white/10 hover:text-white',
+            ].join(' ')}
+          >
+            Total {showTotalLine ? 'On' : 'Off'}
+          </Button>
           <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] p-1">
             {rangeOptions.map((option) => {
               const active = range === option.value;
@@ -205,6 +224,16 @@ export function DailyIncomeTrendChart() {
                 dot={false}
                 activeDot={{ r: 4 }}
               />
+              {showTotalLine ? (
+                <Line
+                  type="monotone"
+                  dataKey="total"
+                  stroke="var(--color-total)"
+                  strokeWidth={3}
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                />
+              ) : null}
             </LineChart>
           </ChartContainer>
         )}
@@ -216,6 +245,16 @@ export function DailyIncomeTrendChart() {
             </Badge>
             <Badge className="rounded-full border-blue-300/20 bg-blue-400/10 px-3 py-1 text-blue-100 hover:bg-blue-400/10">
               iOS Income
+            </Badge>
+            <Badge
+              className={[
+                'rounded-full px-3 py-1 hover:bg-red-400/10',
+                showTotalLine
+                  ? 'border-red-300/20 bg-red-400/10 text-red-100'
+                  : 'border-white/10 bg-white/[0.03] text-white/45',
+              ].join(' ')}
+            >
+              Total Income
             </Badge>
           </div>
           <div className="grid grid-cols-2 gap-3 text-right text-xs md:grid-cols-3">
